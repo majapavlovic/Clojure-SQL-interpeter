@@ -1,7 +1,7 @@
 (ns sql-interpreter.core
-  (:gen-class))
+  (:require [sql-interpreter.data :as data]))
 
-(defn -main
-  "I don't do a whole lot ... yet."
-  [& args]
-  (println "Hello, World!"))
+(defn -main []
+  (let [data (data/load-csv-as-maps "resources/data.csv")]
+    (doseq [row data]
+      (println row))))
