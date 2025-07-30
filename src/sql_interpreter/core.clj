@@ -104,8 +104,20 @@
 
 
 (defn -main []
-  (let [table (data/load-csv-as-maps "resources/data.csv")
-        query "SELECT * FROM data WHERE four BETWEEN -20 AND 5"
-        result (sql-query query table)]
-    (doseq [row result]
-      (println row))))
+  (let [table (data/load-csv-as-maps "resources/data.csv")]
+    (println "Clojure SQL Interpeter (type 'exit' to quit)")
+    (loop []
+      (print "sql> ")
+      (flush)
+      (let [input (read-line)]
+        (if (or (nil? input) (= (str/lower-case input) "exit"))
+          (println "Goodbye!")
+          (do
+            (try
+              (let [result (sql-query input table)]
+                (doseq [row result]
+                  (println row)))
+              (catch Exception e
+                (println "Error:" (.getMessage e))))
+            (recur)))))))
+
