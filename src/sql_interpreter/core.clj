@@ -5,19 +5,49 @@
 
 (defn parse-where-clause [clause]
   (let [[field op value-str] (str/split clause #"\s+")
-        field-key (keyword field)
-        value (try (Integer/parseInt value-str)
-                   (catch Exception _ value-str))
-        op-sym (case op
-                 "=" `=
-                 "!=" `not=
-                 ">" `>
-                 "<" `<
-                 ">=" `>=
-                 "<=" `<=
-                 (throw (Exception. (str "Wrong operator: " op))))]
-    (eval
-     `(fn [~'row] (~op-sym (get ~'row ~field-key) ~value)))))
+        field-key (keyword field)]
+    (cond
+      (= op "LIKE")
+      (let [pattern (str/trim value-str)
+            unquoted (if (re-matches #"^['\"].*['\"]$" pattern)
+                       (subs pattern 1 (dec (count pattern)))
+                       pattern)]
+        (cond
+          (and (str/starts-with? unquoted "%")
+               (str/ends-with? unquoted "%"))
+          (fn [row]
+            (str/includes? (str/lower-case (str (get row field-key)))
+                           (str/lower-case (subs unquoted 1 (dec (count unquoted))))))
+
+          (str/starts-with? unquoted "%")
+          (fn [row]
+            (str/ends-with? (str/lower-case (str (get row field-key)))
+                            (str/lower-case (subs unquoted 1))))
+
+          (str/ends-with? unquoted "%")
+          (fn [row]
+            (str/starts-with? (str/lower-case (str (get row field-key)))
+                              (str/lower-case (subs unquoted 0 (dec (count unquoted))))))
+
+          :else
+          (fn [row]
+            (= (str/lower-case (str (get row field-key)))
+               (str/lower-case unquoted)))))
+
+      :else
+      (let [value (try (Integer/parseInt value-str)
+                       (catch Exception _ (str/replace value-str #"^['\"]|['\"]$" "")))
+            op-sym (case op
+                     "=" `=
+                     "!=" `not=
+                     ">" `>
+                     "<" `<
+                     ">=" `>=
+                     "<=" `<=
+                     (throw (Exception. (str "Wrong operator: " op))))]
+        (eval
+         `(fn [~'row] (~op-sym (get ~'row ~field-key) ~value)))))))
+
 
 
 (defn sql-query [query table-data]
@@ -33,7 +63,7 @@
 
 (defn -main []
   (let [table (data/load-csv-as-maps "resources/data.csv")
-        query "SELECT one, two FROM data WHERE four > 2"
+        query "SELECT one, two, three, four FROM data WHERE two LIKE 'test'"
         result (sql-query query table)]
     (doseq [row result]
       (println row))))
