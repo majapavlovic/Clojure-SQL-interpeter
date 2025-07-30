@@ -9,5 +9,10 @@
           data (rest rows)]
       (doall
        (map (fn [row]
-              (into {} (map vector headers row)))
+              (into {}
+                    (map (fn [[k v]]
+                           [k (try (Integer/parseInt v)
+                                   (catch Exception _ v))])
+                         (map vector headers row))))
+
             data)))))
