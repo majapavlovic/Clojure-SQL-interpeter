@@ -51,19 +51,31 @@
 
 
 (defn sql-query [query table-data]
-  (let [[_ select-str where-clause] (re-matches #"(?i)SELECT (.+) FROM \w+(?: WHERE (.+))?" query)
-        selected-cols (map keyword (map str/trim (str/split select-str #",")))
-        where-fn (when where-clause (parse-where-clause where-clause))
-        filtered-data (if where-fn
-                        (filter where-fn table-data)
-                        table-data)]
-    (map #(select-keys % selected-cols) filtered-data)))
+  (let [[_ select-str where-clause] (re-matches #"(?i)SELECT\s+(.+?)\s+FROM\s+\w+(?:\s+WHERE\s+(.+))?" query)]
+    (when-not select-str
+      (throw (Exception. (str "Invalid SQL query format: " query))))
+
+    (let [select-str (str/trim select-str)
+          selected-cols
+          (if (= select-str "*")
+            (if (seq table-data)
+              (keys (first table-data))
+              (throw (Exception. "SELECT * is not allowed on empty table.")))
+            (map keyword (map str/trim (str/split select-str #","))))
+
+          where-fn (when where-clause (parse-where-clause where-clause))
+          filtered-data (if where-fn
+                          (filter where-fn table-data)
+                          table-data)]
+
+      (map #(select-keys % selected-cols) filtered-data))))
+
 
 
 
 (defn -main []
   (let [table (data/load-csv-as-maps "resources/data.csv")
-        query "SELECT one, two, three, four FROM data WHERE two LIKE 'test'"
+        query "SELECT * FROM data WHERE four > 2"
         result (sql-query query table)]
     (doseq [row result]
       (println row))))
