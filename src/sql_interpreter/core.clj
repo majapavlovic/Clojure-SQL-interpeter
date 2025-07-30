@@ -4,9 +4,33 @@
 
 
 (defn parse-where-clause [clause]
-  (let [[field op value-str] (str/split clause #"\s+")
+  (let [[field op & rest] (str/split clause #"\s+")
+        value-str (str/join " " rest)
         field-key (keyword field)]
     (cond
+      (= op "IN")
+      (let [values-str (str/trim value-str)
+            cleaned (-> values-str
+                        (str/replace #"^\(" "")
+                        (str/replace #"\)$" ""))
+            values (->> (str/split cleaned #",")
+                        (map str/trim)
+                        (map #(str/replace % #"^['\"]|['\"]$" ""))
+                        (map #(try (Integer/parseInt %) (catch Exception _ %))))
+            value-set (set values)]
+        (fn [row]
+          (contains? value-set (get row field-key))))
+
+      (= op "BETWEEN")
+      (let [[v1 _ v2] (str/split value-str #"\s+")
+            lower (try (Integer/parseInt v1) (catch Exception _ nil))
+            upper (try (Integer/parseInt v2) (catch Exception _ nil))]
+        (if (and lower upper)
+          (fn [row]
+            (let [v (get row field-key)]
+              (and (number? v) (<= lower v upper))))
+          (throw (Exception. (str "Invalid BETWEEN values: " value-str)))))
+
       (= op "LIKE")
       (let [pattern (str/trim value-str)
             unquoted (if (re-matches #"^['\"].*['\"]$" pattern)
@@ -44,9 +68,15 @@
                      "<" `<
                      ">=" `>=
                      "<=" `<=
-                     (throw (Exception. (str "Wrong operator: " op))))]
+                     (throw (Exception. (str "Unsupported operator: " op))))]
         (eval
-         `(fn [~'row] (~op-sym (get ~'row ~field-key) ~value)))))))
+         `(fn [~'row]
+            (let [field-val# (get ~'row ~field-key)]
+              (when (and (some? field-val#)
+                         (or (and (number? field-val#) (number? ~value))
+                             (and (string? field-val#) (string? ~value))))
+                (~op-sym field-val# ~value)))))))))
+
 
 
 
@@ -75,7 +105,7 @@
 
 (defn -main []
   (let [table (data/load-csv-as-maps "resources/data.csv")
-        query "SELECT * FROM data WHERE four > 2"
+        query "SELECT * FROM data WHERE four BETWEEN -20 AND 5"
         result (sql-query query table)]
     (doseq [row result]
       (println row))))
