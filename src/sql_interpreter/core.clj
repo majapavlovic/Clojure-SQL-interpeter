@@ -82,7 +82,7 @@
 
 (defn sql-query [query data-map]
   (let [query (str/trim query)
-        pattern #"(?i)SELECT\s+(.+?)\s+FROM\s+([\w.\-_]+)(?:\s+WHERE\s+(.+?))?(?:\s+ORDER\s+BY\s+(\w+)(?:\s+(ASC|DESC))?)?(?:\s+LIMIT\s+(\d+))?"
+        pattern #"(?i)SELECT\s+(.+?)\s+FROM\s+([\w.\-_]+)(?:\s+WHERE\s+(.+?))?(?=\s+ORDER\s+BY|\s+LIMIT|$)(?:\s+ORDER\s+BY\s+(\w+)(?:\s+(ASC|DESC))?)?(?:\s+LIMIT\s+(\d+))?"
         [_ select-str file-name where-clause order-col order-dir limit-str] (re-find pattern query)]
 
     (when-not (and select-str file-name)
