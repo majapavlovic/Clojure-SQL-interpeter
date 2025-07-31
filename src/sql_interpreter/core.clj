@@ -81,15 +81,18 @@
 
 
 (defn sql-query [query data-map]
-  (let [query (str/trim query)
-        pattern #"(?i)SELECT\s+(.+?)\s+FROM\s+([\w.\-_]+)(?:\s+WHERE\s+(.+?))?(?=\s+ORDER\s+BY|\s+LIMIT|$)(?:\s+ORDER\s+BY\s+(\w+)(?:\s+(ASC|DESC))?)?(?:\s+LIMIT\s+(\d+))?"
-        [_ select-str file-name where-clause order-col order-dir limit-str] (re-find pattern query)]
+  (let [[_ distinct? select-str file-name where-clause order-by-str limit-str]
+        (re-matches
+         #"(?i)SELECT\s+(DISTINCT\s+)?(.+?)\s+FROM\s+([\w\.\-_]+)(?:\s+WHERE\s+(.+?))?(?:\s+ORDER\s+BY\s+(.+?))?(?:\s+LIMIT\s+(\d+))?"
+         query)]
 
     (when-not (and select-str file-name)
       (throw (Exception. (str "Invalid SQL query format: " query))))
 
-    (let [file (if (str/ends-with? file-name ".csv") file-name (str file-name ".csv"))
-          table-data (get data-map (str/lower-case file))]
+    (let [file (let [f (str/lower-case file-name)]
+                 (if (str/ends-with? f ".csv") f (str f ".csv")))
+          table-data (get data-map file)]
+
       (when-not table-data
         (throw (Exception. (str "File not loaded or found: " file))))
 
@@ -100,23 +103,49 @@
                 (throw (Exception. "SELECT * is not allowed on empty table.")))
               (map keyword (map str/trim (str/split select-str #","))))
 
-            where-fn (when where-clause (parse-where-clause where-clause))
-            filtered (if where-fn (filter where-fn table-data) table-data)
+            where-fn
+            (when where-clause
+              (parse-where-clause where-clause))
 
-            ordered
-            (if order-col
-              (let [k (keyword order-col)
-                    cmp (if (= (str/upper-case (or order-dir "ASC")) "DESC")
-                          #(compare %2 %1)
-                          #(compare %1 %2))]
-                (sort-by k cmp filtered))
-              filtered)
+            filtered-data
+            (if where-fn
+              (filter where-fn table-data)
+              table-data)
 
-            limited (if limit-str
-                      (take (Integer/parseInt limit-str) ordered)
-                      ordered)]
+            selected-data
+            (map #(select-keys % selected-cols) filtered-data)
 
-        (map #(select-keys % selected-cols) limited)))))
+            distinct-data
+            (if distinct?
+              (distinct selected-data)
+              selected-data)
+
+            ordered-data
+            (if order-by-str
+              (let [order-clauses (map str/trim (str/split order-by-str #","))]
+                (sort-by
+                 (apply juxt
+                        (map (fn [clause]
+                               (let [[col direction] (map str/trim (str/split clause #"\s+"))
+                                     k (keyword col)]
+                                 (cond
+                                   (= (str/lower-case direction) "desc") #(get % k)
+                                   (= (str/lower-case direction) "asc")  #(get % k)
+                                   :else #(get % k))))
+                             order-clauses))
+                 (if (some #(re-find #"(?i)\sdesc$" %) order-clauses)
+                   #(compare %2 %1)
+                   compare)
+                 distinct-data))
+              distinct-data)
+
+            limited-data
+            (if limit-str
+              (take (Integer/parseInt limit-str) ordered-data)
+              ordered-data)]
+
+        limited-data))))
+
 
 
 
