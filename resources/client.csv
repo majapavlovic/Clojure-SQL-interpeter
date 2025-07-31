@@ -1,0 +1,6 @@
+id,name,surname,age,address,contact_phone,contact_email
+1,Marko,Jovanovic,34,Bulevar Kralja Aleksandra 142,0601234567,marko.jovanovic@gmail.com
+2,Jelena,Petrovic,28,Nemanjina 4,0612345678,jelena.petrovic@yahoo.com
+3,Nemanja,Stankovic,45,Knez Mihailova 12,0629876543,nemanja.stankovic@hotmail.com
+4,Milica,Djordjevic,31,Vojvode Stepe 89,0631112233,milica.djordjevic@gmail.com
+5,Stefan,Ilic,39,Gavrila Principa 22,0644445556,stefan.ilic@outlook.com

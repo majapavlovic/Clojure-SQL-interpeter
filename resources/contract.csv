@@ -1,0 +1,6 @@
+contractid,clientid,tariff_package,contract_obligation,subscription
+101,1,Premium,24 months,4990.00
+102,2,Basic,12 months,1490.00
+103,3,Standard,24 months,2590.00
+104,4,Premium,12 months,3900.00
+105,5,Standard,18 months,2490.00

@@ -80,32 +80,53 @@
 
 
 
-(defn sql-query [query table-data]
-  (let [[_ select-str where-clause] (re-matches #"(?i)SELECT\s+(.+?)\s+FROM\s+\w+(?:\s+WHERE\s+(.+))?" query)]
-    (when-not select-str
+(defn sql-query [query data-map]
+  (let [[_ select-str file-name where-clause]
+        (re-matches #"(?i)SELECT\s+(.+?)\s+FROM\s+([\w\.\-_]+)(?:\s+WHERE\s+(.+))?" query)]
+    (when-not (and select-str file-name)
       (throw (Exception. (str "Invalid SQL query format: " query))))
 
-    (let [select-str (str/trim select-str)
-          selected-cols
-          (if (= select-str "*")
-            (if (seq table-data)
-              (keys (first table-data))
-              (throw (Exception. "SELECT * is not allowed on empty table.")))
-            (map keyword (map str/trim (str/split select-str #","))))
+    (let [file (let [f (str/lower-case file-name)]
+                 (if (str/ends-with? f ".csv") f (str f ".csv")))
+          table-data (get data-map file)]
+      (when-not table-data
+        (throw (Exception. (str "File not loaded or found: " file))))
 
-          where-fn (when where-clause (parse-where-clause where-clause))
-          filtered-data (if where-fn
-                          (filter where-fn table-data)
-                          table-data)]
+      (let [selected-cols
+            (if (= (str/trim select-str) "*")
+              (if (seq table-data)
+                (keys (first table-data))
+                (throw (Exception. "SELECT * is not allowed on empty table.")))
+              (map keyword (map str/trim (str/split select-str #","))))
 
-      (map #(select-keys % selected-cols) filtered-data))))
+            where-fn (when where-clause (parse-where-clause where-clause))
+            filtered-data (if where-fn
+                            (filter where-fn table-data)
+                            table-data)]
+
+        (map #(select-keys % selected-cols) filtered-data)))))
+
 
 
 
 
 (defn -main []
-  (let [table (data/load-csv-as-maps "resources/data.csv")]
-    (println "Clojure SQL Interpeter (type 'exit' to quit)")
+  (println "Clojure SQL Interpreter (type 'exit' to quit)")
+  (println "Loading CSV files...")
+
+  (let [resource-dir "resources"
+        csv-files (->> (file-seq (clojure.java.io/file resource-dir))
+                       (filter #(and (.isFile %)
+                                     (.endsWith (.getName %) ".csv")))
+                       (map #(.getName %)))
+        data-map (into {}
+                       (for [fname csv-files]
+                         [fname (try
+                                  (data/load-csv-as-maps (str resource-dir "/" fname))
+                                  (catch Exception e
+                                    (println "Failed to load" fname ":" (.getMessage e))
+                                    []))]))]
+    (println "Loaded files:" (keys data-map))
     (loop []
       (print "sql> ")
       (flush)
@@ -114,7 +135,7 @@
           (println "Goodbye!")
           (do
             (try
-              (let [result (sql-query input table)]
+              (let [result (sql-query input data-map)]
                 (doseq [row result]
                   (println row)))
               (catch Exception e
