@@ -81,14 +81,15 @@
 
 
 (defn sql-query [query data-map]
-  (let [[_ select-str file-name where-clause]
-        (re-matches #"(?i)SELECT\s+(.+?)\s+FROM\s+([\w\.\-_]+)(?:\s+WHERE\s+(.+))?" query)]
+  (let [query (str/trim query)
+        pattern #"(?i)SELECT\s+(.+?)\s+FROM\s+([\w.\-_]+)(?:\s+WHERE\s+(.+?))?(?:\s+ORDER\s+BY\s+(\w+)(?:\s+(ASC|DESC))?)?(?:\s+LIMIT\s+(\d+))?"
+        [_ select-str file-name where-clause order-col order-dir limit-str] (re-find pattern query)]
+
     (when-not (and select-str file-name)
       (throw (Exception. (str "Invalid SQL query format: " query))))
 
-    (let [file (let [f (str/lower-case file-name)]
-                 (if (str/ends-with? f ".csv") f (str f ".csv")))
-          table-data (get data-map file)]
+    (let [file (if (str/ends-with? file-name ".csv") file-name (str file-name ".csv"))
+          table-data (get data-map (str/lower-case file))]
       (when-not table-data
         (throw (Exception. (str "File not loaded or found: " file))))
 
@@ -100,11 +101,23 @@
               (map keyword (map str/trim (str/split select-str #","))))
 
             where-fn (when where-clause (parse-where-clause where-clause))
-            filtered-data (if where-fn
-                            (filter where-fn table-data)
-                            table-data)]
+            filtered (if where-fn (filter where-fn table-data) table-data)
 
-        (map #(select-keys % selected-cols) filtered-data)))))
+            ordered
+            (if order-col
+              (let [k (keyword order-col)
+                    cmp (if (= (str/upper-case (or order-dir "ASC")) "DESC")
+                          #(compare %2 %1)
+                          #(compare %1 %2))]
+                (sort-by k cmp filtered))
+              filtered)
+
+            limited (if limit-str
+                      (take (Integer/parseInt limit-str) ordered)
+                      ordered)]
+
+        (map #(select-keys % selected-cols) limited)))))
+
 
 
 
