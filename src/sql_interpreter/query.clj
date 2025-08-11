@@ -2,6 +2,19 @@
   (:require [sql-interpreter.parser :refer [parse-where-clause]]
             [clojure.string :as str]))
 
+(defn- split-and-clauses
+  [where-clause]
+  (->> (str/split where-clause #"(?i)\s+AND\s+")
+       (map str/trim)
+       (remove str/blank?)))
+
+(defn- build-where-fn
+  [where-clause]
+  (let [parts (split-and-clauses where-clause)]
+    (cond
+      (empty? parts) nil
+      (= 1 (count parts)) (parse-where-clause (first parts))
+      :else (apply every-pred (map parse-where-clause parts)))))
 
 (defn sql-query [query data-map]
   (let [[_ distinct? select-str file-name where-clause order-by-str limit-str]
@@ -25,8 +38,7 @@
                 (keys (first table-data))
                 (throw (Exception. "SELECT * is not allowed on empty table.")))
               (map keyword (map str/trim (str/split select-str #","))))
-
-            where-fn (when where-clause (parse-where-clause where-clause))
+            where-fn (when where-clause (build-where-fn where-clause))
             filtered-data (if where-fn (filter where-fn table-data) table-data)
 
             ordered-data
