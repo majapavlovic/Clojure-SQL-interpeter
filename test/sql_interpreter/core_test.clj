@@ -35,3 +35,7 @@
 (deftest test-where-order-limit-combined
   (let [result (sql-query "SELECT name FROM client WHERE age > 30 ORDER BY age DESC LIMIT 2" test-data-map)]
     (is (= ["Nemanja" "Nikola"] (map :name result)))))
+
+(deftest test-where-and
+  (let [result (sql-query "SELECT name FROM client WHERE age >= 39 AND contact_email LIKE '%@gmail.com'" test-data-map)]
+    (is (= ["Nikola"] (map :name result)))))
