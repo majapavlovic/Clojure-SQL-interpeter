@@ -39,3 +39,12 @@
 (deftest test-where-and
   (let [result (sql-query "SELECT name FROM client WHERE age >= 39 AND contact_email LIKE '%@gmail.com'" test-data-map)]
     (is (= ["Nikola"] (map :name result)))))
+
+(deftest test-or
+  (let [result (sql-query "SELECT name FROM client WHERE age >= 39 OR contact_phone LIKE '60%'" test-data-map)]
+    (is (= ["Marko" "Nemanja" "Stefan" "Nikola" "Marija" "Tamara"] (map :name result)))))
+
+(deftest test-or-orderby-limit
+  (let [result (sql-query "SELECT id, name FROM client WHERE age > 31 or contact_phone LIKE '61%' ORDER BY id DESC LIMIT 2" test-data-map)]
+    (is (= #{{:id 12 :name "Ivan"}
+             {:id 10 :name "Marija"}}))))

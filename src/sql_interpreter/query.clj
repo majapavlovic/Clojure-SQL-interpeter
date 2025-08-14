@@ -3,24 +3,41 @@
             [clojure.string :as str]))
 
 (defn- split-and-clauses
-  [where-clause]
-  (->> (str/split where-clause #"(?i)\s+AND\s+")
+  [s]
+  (->> (str/split s #"(?i)\s+AND\s+")
        (map str/trim)
        (remove str/blank?)))
 
-(defn- build-where-fn
-  [where-clause]
-  (let [parts (split-and-clauses where-clause)]
+(defn- split-or-clauses
+  [s]
+  (->> (str/split s #"(?i)\s+OR\s+")
+       (map str/trim)
+       (remove str/blank?)))
+
+(defn- build-and-predicate
+  [and-group]
+  (let [parts (split-and-clauses and-group)]
     (cond
-      (empty? parts) nil
+      (empty? parts) (constantly true)
       (= 1 (count parts)) (parse-where-clause (first parts))
       :else (apply every-pred (map parse-where-clause parts)))))
+
+(defn- build-where-fn
+  [where-clause]
+  (let [or-groups (split-or-clauses where-clause)]
+    (cond
+      (empty? or-groups) nil
+      (= 1 (count or-groups)) (build-and-predicate (first or-groups))
+      :else
+      (let [preds (map build-and-predicate or-groups)]
+        (fn [row] (some #(true? (% row)) preds))))))
+
 
 (defn sql-query [query data-map]
   (let [[_ distinct? select-str file-name where-clause order-by-str limit-str]
         (re-matches
-         #"(?i)SELECT\s+(DISTINCT\s+)?(.+?)\s+FROM\s+([\w\.\-_]+)(?:\s+WHERE\s+(.+?))?(?:\s+ORDER\s+BY\s+(.+?))?(?:\s+LIMIT\s+(\d+))?"
-         query)]
+         #"(?i)SELECT\s+(DISTINCT\s+)?(.+?)\s+FROM\s+([\w.\-_]+)(?:\s+WHERE\s+(.+?))?(?=\s+ORDER\s+BY|\s+LIMIT|$)(?:\s+ORDER\s+BY\s+(.+?))?(?:\s+LIMIT\s+(\d+))?"
+         (str/trim query))]
 
     (when-not (and select-str file-name)
       (throw (Exception. (str "Invalid SQL query format: " query))))
@@ -38,8 +55,13 @@
                 (keys (first table-data))
                 (throw (Exception. "SELECT * is not allowed on empty table.")))
               (map keyword (map str/trim (str/split select-str #","))))
-            where-fn (when where-clause (build-where-fn where-clause))
-            filtered-data (if where-fn (filter where-fn table-data) table-data)
+
+            where-fn (when (some? where-clause)
+                       (build-where-fn where-clause))
+
+            filtered-data (if where-fn
+                            (filter where-fn table-data)
+                            table-data)
 
             ordered-data
             (if order-by-str
@@ -57,8 +79,14 @@
                  filtered-data))
               filtered-data)
 
-            limited-data (if limit-str (take (Integer/parseInt limit-str) ordered-data) ordered-data)
-            distinct-data (if distinct? (distinct limited-data) limited-data)
+            limited-data (if limit-str
+                           (take (Integer/parseInt limit-str) ordered-data)
+                           ordered-data)
+
+            distinct-data (if distinct?
+                            (distinct limited-data)
+                            limited-data)
+
             selected-data (map #(select-keys % selected-cols) distinct-data)]
 
         selected-data))))
