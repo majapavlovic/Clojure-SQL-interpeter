@@ -32,6 +32,22 @@
       (let [preds (map build-and-predicate or-groups)]
         (fn [row] (some #(true? (% row)) preds))))))
 
+(defn- build-order-comparator [order-clauses]
+  (let [parsed (map (fn [clause]
+                      (let [[col dir] (map str/trim (str/split clause #"\s+"))
+                            k (keyword col)
+                            desc? (and dir (re-find #"(?i)desc" dir))]
+                        {:key k :desc desc?}))
+                    order-clauses)]
+    (fn [a b]
+      (loop [[{:keys [key desc]} & more] parsed]
+        (if key
+          (let [cmp (compare (get a key) (get b key))]
+            (if (zero? cmp)
+              (recur more)
+              (if desc (- cmp) cmp)))
+          0)))))
+
 
 (defn sql-query [query data-map]
   (let [[_ distinct? select-str file-name where-clause order-by-str limit-str]
@@ -66,18 +82,7 @@
             ordered-data
             (if order-by-str
               (let [order-clauses (map str/trim (str/split order-by-str #","))]
-                (sort-by
-                 (apply juxt
-                        (map (fn [clause]
-                               (let [[col direction] (map str/trim (str/split clause #"\s+"))
-                                     k (keyword col)]
-                                 (fn [row] (get row k))))
-                             order-clauses))
-                 (if (some #(re-find #"(?i)\sdesc$" %) order-clauses)
-                   #(compare %2 %1)
-                   compare)
-                 filtered-data))
-              filtered-data)
+                (sort (build-order-comparator order-clauses) filtered-data)))
 
             limited-data (if limit-str
                            (take (Integer/parseInt limit-str) ordered-data)
