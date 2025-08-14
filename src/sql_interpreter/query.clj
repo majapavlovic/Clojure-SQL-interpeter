@@ -32,22 +32,47 @@
       (let [preds (map build-and-predicate or-groups)]
         (fn [row] (some #(true? (% row)) preds))))))
 
-(defn- build-order-comparator [order-clauses]
-  (let [parsed (map (fn [clause]
-                      (let [[col dir] (map str/trim (str/split clause #"\s+"))
-                            k (keyword col)
-                            desc? (and dir (re-find #"(?i)desc" dir))]
-                        {:key k :desc desc?}))
-                    order-clauses)]
-    (fn [a b]
-      (loop [[{:keys [key desc]} & more] parsed]
-        (if key
-          (let [cmp (compare (get a key) (get b key))]
-            (if (zero? cmp)
-              (recur more)
-              (if desc (- cmp) cmp)))
-          0)))))
+(defn- parse-order-by
+  [order-by-str]
+  (->> (str/split order-by-str #",")
+       (map str/trim)
+       (remove str/blank?)
+       (map (fn [clause]
+              (let [[col dir] (map str/trim (str/split clause #"\s+"))
+                    k   (keyword col)
+                    dir (if (and dir (re-matches #"(?i)desc" dir)) :desc :asc)]
+                {:key k :dir dir})))
+       vec))
 
+(defn- safe-compare
+  [a b]
+  (cond
+    (and (nil? a) (nil? b)) 0
+    (nil? a) -1
+    (nil? b)  1
+    :else (compare a b)))
+
+(defn- build-order-comparator
+  [specs]
+  (fn [x y]
+    (loop [[{:keys [key dir]} & more] specs]
+      (if key
+        (let [c (safe-compare (get x key) (get y key))
+              c (if (= dir :desc) (- c) c)]
+          (if (zero? c) (recur more) c))
+        0))))
+
+(defn- parse-select-cols
+  [select-str first-row]
+  (if (= (str/trim select-str) "*")
+    (if (seq first-row)
+      (vec (keys first-row))
+      (throw (Exception. "SELECT * is not allowed on empty table.")))
+    (->> (str/split select-str #",")
+         (map str/trim)
+         (remove str/blank?)
+         (map keyword)
+         vec)))
 
 (defn sql-query [query data-map]
   (let [[_ distinct? select-str file-name where-clause order-by-str limit-str]
@@ -65,33 +90,23 @@
       (when-not table-data
         (throw (Exception. (str "File not loaded or found: " file))))
 
-      (let [selected-cols
-            (if (= (str/trim select-str) "*")
-              (if (seq table-data)
-                (keys (first table-data))
-                (throw (Exception. "SELECT * is not allowed on empty table.")))
-              (map keyword (map str/trim (str/split select-str #","))))
-
-            where-fn (when (some? where-clause)
-                       (build-where-fn where-clause))
-
-            filtered-data (if where-fn
-                            (filter where-fn table-data)
-                            table-data)
-
+      (let [selected-cols (parse-select-cols select-str (first table-data))
+            where-fn (when where-clause (build-where-fn where-clause))
+            filtered-data (if where-fn (filter where-fn table-data)
+                              table-data)
             ordered-data
-            (if order-by-str
-              (let [order-clauses (map str/trim (str/split order-by-str #","))]
-                (sort (build-order-comparator order-clauses) filtered-data)))
+            (if (and order-by-str (not (str/blank? order-by-str)))
+              (let [specs (parse-order-by order-by-str)]
+                (sort (build-order-comparator specs) filtered-data))
+              filtered-data)
 
             limited-data (if limit-str
                            (take (Integer/parseInt limit-str) ordered-data)
                            ordered-data)
 
             distinct-data (if distinct?
-                            (distinct limited-data)
-                            limited-data)
+                            (distinct limited-data) limited-data)
 
-            selected-data (map #(select-keys % selected-cols) distinct-data)]
+            projected (map #(select-keys % selected-cols) distinct-data)]
 
-        selected-data))))
+        projected))))
