@@ -48,3 +48,11 @@
   (let [result (sql-query "SELECT id, name FROM client WHERE age > 31 or contact_phone LIKE '61%' ORDER BY id DESC LIMIT 2" test-data-map)]
     (is (= #{{:id 12 :name "Ivan"}
              {:id 10 :name "Marija"}}))))
+
+(deftest order-by-combined
+  (let [result (sql-query "SELECT contractid, contract_obligation, subscription FROM contract ORDER BY contract_obligation ASC, subscription DESC" test-data-map)]
+    (is (= #{{:contractid 104, :contract_obligation "12 months", :subscription 3900}
+             {:contractid 102, :contract_obligation "12 months", :subscription 1490}
+             {:contractid 105, :contract_obligation "18 months", :subscription 2490}
+             {:contractid 101, :contract_obligation "24 months", :subscription 4990}
+             {:contractid 103, :contract_obligation "24 months", :subscription 2590}}))))
