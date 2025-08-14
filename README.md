@@ -1,32 +1,56 @@
-# sql-interpreter
+# Clojure SQL Interpreter
 
-FIXME: description
+This college project is a simple and lightweight SQL-like interpreter built in Clojure. It allows querying CSV files using a subset of SQL syntax directly from the console.
+
+## Features
+
+Supports basic SQL operations
+
+- `SELECT` with column names or `*`
+- `WHERE` clause with operators: `=`, `!=`, `<`, `>`, `<=`, `>=`
+- `LIKE`, `IN (...)`, `BETWEEN ...` operators to be used with `WHERE`
+- `AND` and `OR` to support multiple conditions in select statements
+- `ORDER BY` with multiple columns and `ASC`/`DESC`
+- `LIMIT` to restrict number of returned rows
+- `DISTINCT` to remove duplicates
+
+Case-insensitive SQL parsing  
+Supports multiple CSV files from the `/resources` directory  
+Interactive CLI with live feedback and error handling
 
 ## Installation
 
-Download from http://example.com/FIXME.
+Clone repository: git clone https://github.com/majapavlovic/Clojure-SQL-interpeter.git
+Add your .csv to resources folder
+Position to folder cd sql-interpreter
+And run the app with
+lein run
 
-## Usage
+Run tests with
+lein test
 
-FIXME: explanation
+## Run examples
 
-    $ java -jar sql-interpreter-0.1.0-standalone.jar [args]
+SELECT \* FROM client;
 
-## Options
+SELECT name, age FROM client WHERE age > 30;
 
-FIXME: listing of options this app accepts.
+SELECT name FROM client ORDER BY age DESC LIMIT 3;
 
-## Examples
+SELECT DISTINCT name FROM client;
 
-...
+SELECT \* FROM client WHERE age BETWEEN 30 AND 40;
 
-### Bugs
+SELECT \* FROM client WHERE name IN ('Marko', 'Jelena');
 
-...
+SELECT \* FROM client WHERE surname LIKE '%vic';
 
-### Any Other Sections
-### That You Think
-### Might be Useful
+SELECT name FROM client WHERE age > 30 ORDER BY age DESC LIMIT 2
+
+## Requirements
+
+Leiningen
+Java 8+
 
 ## License
 
