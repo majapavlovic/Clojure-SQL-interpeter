@@ -52,6 +52,17 @@ SELECT name FROM client WHERE age > 30 ORDER BY age DESC LIMIT 2
 Leiningen
 Java 8+
 
+## Inspiration and references
+
+[1] Clojure cheatsheet - https://clojure.org/api/cheatsheet
+[2] Daniel Higginbotham, Clojure for the Brave and True - https://www.braveclojure.com/clojure-for-the-brave-and-true/
+[3] Clojure docs - https://clojuredocs.org
+[4] Clojure Data CSV – https://github.com/clojure/data.csv  
+[5] Honey SQL https://github.com/seancorfield/honeysql
+[6] Regex101 - https://regex101.com
+[7] Jan Goyvaerts & Steven Levithan, Regular Expressions Cookbook https://theswissbay.ch/pdf/Gentoomen%20Library/Programming/Regular%20Expressions/OReilly.Regular.Expressions.Cookbook.May.2009.RETAiL.eBOOk-sUppLeX.pdf
+[8] MDN Regular Expressions Guide - https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_expressions
+
 ## License
 
 Copyright © 2025 FIXME
